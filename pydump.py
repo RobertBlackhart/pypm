@@ -125,7 +125,8 @@ class FakeFrame():
         self.f_globals = _convert_dict(frame.f_globals)
         self.f_lineno = frame.f_lineno
         self.f_back = FakeFrame(frame.f_back) if frame.f_back else None
-
+        if 'self' in self.f_locals:
+            self.f_locals['self'] = _convert_obj(frame.f_locals['self'])
 
 class FakeTraceback(object):
     def __init__(self, traceback):
@@ -177,7 +178,10 @@ def _safe_repr(v):
         return "repr error: " + str(e)
 
 def _convert_obj(obj):
-    return FakeClass(_safe_repr(obj), _convert_dict(obj.__dict__))
+    try:
+        return FakeClass(_safe_repr(obj), _convert_dict(obj.__dict__))
+    except:
+        return _convert(obj)
 
 def _convert_dict(v):
     return dict((_convert(k), _convert(i)) for (k, i) in v.items())
