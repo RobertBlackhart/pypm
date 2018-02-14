@@ -121,8 +121,8 @@ class FakeCode(object):
 class FakeFrame():
     def __init__(self, frame):
         self.f_code = FakeCode(frame.f_code)
-        self.f_locals = frame.f_locals
-        self.f_globals = frame.f_globals
+        self.f_locals = _convert_dict(frame.f_locals)
+        self.f_globals = _convert_dict(frame.f_globals)
         self.f_lineno = frame.f_lineno
         self.f_back = FakeFrame(frame.f_back) if frame.f_back else None
 
@@ -186,35 +186,11 @@ def _convert_seq(v):
     return (_convert(i) for i in v)
 
 def _convert(v):
-    from datetime import date, time, datetime, timedelta
-
-    BUILTIN = (
-        #str, unicode,
-        str,
-        #int, long, float,
-        int, float,
-        date, time, datetime, timedelta,
-    )
-
-    if v is None:
+    try:
+        dill.dumps(v)
         return v
-
-    if type(v) in BUILTIN:
-        return v
-
-    if type(v) is tuple:
-        return tuple(_convert_seq(v))
-
-    if type(v) is list:
-        return list(_convert_seq(v))
-
-    if type(v) is set:
-        return set(_convert_seq(v))
-
-    if type(v) is dict:
-        return _convert_dict(v)
-
-    return _safe_repr(v)
+    except:
+        return _safe_repr(v)
 
 def _cache_files(files):
     for name, data in files.items():
