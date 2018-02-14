@@ -31,6 +31,7 @@ setup(
     package_dir={'pydump':'.'},
     packages=['pydump'],
     scripts=['pydump'],
+    install_requires=['dill'],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',

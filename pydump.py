@@ -27,8 +27,9 @@ import pdb
 import gzip
 import pickle
 import linecache
-
-import __builtin__
+import inspect
+import dill
+import builtins as __builtin__
 
 __version__ = "1.1.1"
 
@@ -56,7 +57,7 @@ def save_dump(filename, tb=None):
         'dump_version' : DUMP_VERSION
     }
     with gzip.open(filename, 'wb') as f:
-        pickle.dump(dump, f)
+        dill.dump(dump, f)
 
 def load_dump(filename):
     # ugly hack to handle running non-install pydump
@@ -64,10 +65,11 @@ def load_dump(filename):
         sys.modules['pydump.pydump'] = sys.modules[__name__]
     with gzip.open(filename, 'rb') as f:
         try:
-            return pickle.load(f)
+            return dill.load(f)
         except IOError:
             with open(filename, 'rb') as f:
-                return pickle.load(f)
+                return dill.load(f)
+
 
 def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     dump = load_dump(dump_filename)
@@ -75,8 +77,23 @@ def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     tb = dump['traceback']
     _inject_builtins(tb)
     _old_checkcache = linecache.checkcache
+    _old_isframe = inspect.isframe
+    _old_iscode = inspect.iscode
+    _old_istraceback = inspect.istraceback
+    _old_isclass = inspect.isclass
+
     linecache.checkcache = lambda filename=None: None
+    inspect.isframe = lambda o: _old_isframe(o) or isinstance(o, FakeFrame)
+    inspect.iscode = lambda o: _old_iscode(o) or isinstance(o, FakeCode)
+    inspect.istraceback = lambda o: _old_istraceback(o) or isinstance(o, FakeTraceback)
+    inspect.isclass = lambda o: _old_isclass(o) or isinstance(o, FakeClass)
+
     post_mortem_func(tb)
+
+    inspect.isframe = _old_isframe
+    inspect.iscode = _old_iscode
+    inspect.istraceback = _old_istraceback
+    inspect.isclass = _old_isclass
     linecache.checkcache = _old_checkcache
 
 class FakeClass(object):
@@ -93,7 +110,7 @@ class FakeCode(object):
         self.co_name = code.co_name
         self.co_argcount = code.co_argcount
         self.co_consts = tuple(
-            FakeCode(c) if hasattr(c, 'co_filename') else c 
+            FakeCode(c) if hasattr(c, 'co_filename') else c
             for c in code.co_consts
         )
         self.co_firstlineno = code.co_firstlineno
@@ -101,16 +118,14 @@ class FakeCode(object):
         self.co_varnames = code.co_varnames
         self.co_flags = code.co_flags
 
-class FakeFrame(object):
+class FakeFrame():
     def __init__(self, frame):
         self.f_code = FakeCode(frame.f_code)
-        self.f_locals = _convert_dict(frame.f_locals)
-        self.f_globals = _convert_dict(frame.f_globals)
+        self.f_locals = frame.f_locals
+        self.f_globals = frame.f_globals
         self.f_lineno = frame.f_lineno
         self.f_back = FakeFrame(frame.f_back) if frame.f_back else None
 
-        if 'self' in self.f_locals:
-            self.f_locals['self'] = _convert_obj(frame.f_locals['self'])
 
 class FakeTraceback(object):
     def __init__(self, traceback):
@@ -125,7 +140,7 @@ def _remove_builtins(fake_tb):
         frame = traceback.tb_frame
         while frame:
             frame.f_globals = dict(
-                (k,v) for k,v in frame.f_globals.iteritems()
+                (k,v) for k,v in frame.f_globals.items()
                 if k not in dir(__builtin__)
             )
             frame = frame.f_back
@@ -158,7 +173,7 @@ def _get_traceback_files(traceback):
 def _safe_repr(v):
     try:
         return repr(v)
-    except Exception, e:
+    except Exception as e:
         return "repr error: " + str(e)
 
 def _convert_obj(obj):
@@ -174,8 +189,10 @@ def _convert(v):
     from datetime import date, time, datetime, timedelta
 
     BUILTIN = (
-        str, unicode,
-        int, long, float,
+        #str, unicode,
+        str,
+        #int, long, float,
+        int, float,
         date, time, datetime, timedelta,
     )
 
@@ -200,6 +217,6 @@ def _convert(v):
     return _safe_repr(v)
 
 def _cache_files(files):
-    for name, data in files.iteritems():
+    for name, data in files.items():
         lines = [line+'\n' for line in data.splitlines()]
         linecache.cache[name] = (len(data), None, lines, name)
