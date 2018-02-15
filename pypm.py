@@ -1,6 +1,6 @@
 """
 The MIT License (MIT)
-Copyright (C) 2012 Eli Finer <eli.finer@gmail.com>
+Copyright (C) 2018 Jordi Masip <jordi@masip.cat>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ import inspect
 import dill
 import builtins as __builtin__
 
-__version__ = "1.1.1"
+__version__ = "2.0"
 
 DUMP_VERSION = 1
 
@@ -42,27 +42,26 @@ def save_dump(filename, tb=None):
 
     The saved file can be loaded with load_dump which creates a fake traceback
     object that can be passed to any reasonable Python debugger.
-
-    The simplest way to do that is to run:
-
-       $ pydump.py my_dump_file.dump
     """
     if not tb:
         tb = sys.exc_info()[2]
     fake_tb = FakeTraceback(tb)
-    _remove_builtins(fake_tb)
     dump = {
-        'traceback':fake_tb,
-        'files':_get_traceback_files(fake_tb),
-        'dump_version' : DUMP_VERSION
+        'traceback': fake_tb,
+        'files': _get_traceback_files(fake_tb),
+        'dump_version': DUMP_VERSION
     }
+    
+    # Monkey patch of pickle.save() to fail silently when saving unpickable objects
+    pickle._Pickler.save = pickle_save(pickle._Pickler.save)
+
     with gzip.open(filename, 'wb') as f:
         dill.dump(dump, f)
 
 def load_dump(filename):
     # ugly hack to handle running non-install pydump
-    if 'pydump.pydump' not in sys.modules:
-        sys.modules['pydump.pydump'] = sys.modules[__name__]
+    if 'pypm.pypm' not in sys.modules:
+        sys.modules['pypm.pypm'] = sys.modules[__name__]
     with gzip.open(filename, 'rb') as f:
         try:
             return dill.load(f)
@@ -75,34 +74,29 @@ def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     dump = load_dump(dump_filename)
     _cache_files(dump['files'])
     tb = dump['traceback']
-    _inject_builtins(tb)
     _old_checkcache = linecache.checkcache
     _old_isframe = inspect.isframe
     _old_iscode = inspect.iscode
     _old_istraceback = inspect.istraceback
-    _old_isclass = inspect.isclass
 
     linecache.checkcache = lambda filename=None: None
     inspect.isframe = lambda o: _old_isframe(o) or isinstance(o, FakeFrame)
     inspect.iscode = lambda o: _old_iscode(o) or isinstance(o, FakeCode)
     inspect.istraceback = lambda o: _old_istraceback(o) or isinstance(o, FakeTraceback)
-    inspect.isclass = lambda o: _old_isclass(o) or isinstance(o, FakeClass)
 
     post_mortem_func(tb)
 
     inspect.isframe = _old_isframe
     inspect.iscode = _old_iscode
     inspect.istraceback = _old_istraceback
-    inspect.isclass = _old_isclass
     linecache.checkcache = _old_checkcache
 
-class FakeClass(object):
-    def __init__(self, repr, vars):
-        self.__repr = repr
-        self.__dict__.update(vars)
 
-    def __repr__(self):
-        return self.__repr
+class NotPickled(object):
+
+    def __init__(self, txt):
+        self.__str__ = lambda x: f'<NotPickled: {txt}>'
+
 
 class FakeCode(object):
     def __init__(self, code):
@@ -118,15 +112,15 @@ class FakeCode(object):
         self.co_varnames = code.co_varnames
         self.co_flags = code.co_flags
 
+
 class FakeFrame():
     def __init__(self, frame):
         self.f_code = FakeCode(frame.f_code)
-        self.f_locals = _convert_dict(frame.f_locals)
-        self.f_globals = _convert_dict(frame.f_globals)
+        self.f_locals = frame.f_locals
+        self.f_globals = frame.f_globals
         self.f_lineno = frame.f_lineno
         self.f_back = FakeFrame(frame.f_back) if frame.f_back else None
-        if 'self' in self.f_locals:
-            self.f_locals['self'] = _convert_obj(frame.f_locals['self'])
+
 
 class FakeTraceback(object):
     def __init__(self, traceback):
@@ -135,26 +129,6 @@ class FakeTraceback(object):
         self.tb_next = FakeTraceback(traceback.tb_next) if traceback.tb_next else None
         self.tb_lasti = 0
 
-def _remove_builtins(fake_tb):
-    traceback = fake_tb
-    while traceback:
-        frame = traceback.tb_frame
-        while frame:
-            frame.f_globals = dict(
-                (k,v) for k,v in frame.f_globals.items()
-                if k not in dir(__builtin__)
-            )
-            frame = frame.f_back
-        traceback = traceback.tb_next
-
-def _inject_builtins(fake_tb):
-    traceback = fake_tb
-    while traceback:
-        frame = traceback.tb_frame
-        while frame:
-            frame.f_globals.update(__builtin__.__dict__)
-            frame = frame.f_back
-        traceback = traceback.tb_next
 
 def _get_traceback_files(traceback):
     files = {}
@@ -171,32 +145,18 @@ def _get_traceback_files(traceback):
         traceback = traceback.tb_next
     return files
 
-def _safe_repr(v):
-    try:
-        return repr(v)
-    except Exception as e:
-        return "repr error: " + str(e)
-
-def _convert_obj(obj):
-    try:
-        return FakeClass(_safe_repr(obj), _convert_dict(obj.__dict__))
-    except:
-        return _convert(obj)
-
-def _convert_dict(v):
-    return dict((_convert(k), _convert(i)) for (k, i) in v.items())
-
-def _convert_seq(v):
-    return (_convert(i) for i in v)
-
-def _convert(v):
-    try:
-        dill.dumps(v)
-        return v
-    except:
-        return _safe_repr(v)
 
 def _cache_files(files):
     for name, data in files.items():
         lines = [line+'\n' for line in data.splitlines()]
         linecache.cache[name] = (len(data), None, lines, name)
+
+
+def pickle_save(f):
+    def _save(self, obj, save_persistent_id=True):
+        try:
+            f(self, obj, save_persistent_id)
+        except Exception as e:
+            obj = NotPickled(obj.__repr__())
+            f(self, obj, save_persistent_id)
+    return _save

@@ -1,9 +1,7 @@
-#!/usr/bin/env python
-
 from distutils.core import setup
 
 DESCRIPTION = """
-Pydump allows post-mortem debugging for Python programs.
+pypm allows post-mortem debugging for Python programs.
 
 It writes the traceback of an exception into a file and can later load
 it in a Python debugger.
@@ -14,23 +12,23 @@ Works with the built-in pdb and with other popular debuggers
 
 # get version without importing
 __version__ = 'unknown'
-for line in open('pydump.py'):
+for line in open('pypm.py'):
     if line.startswith('__version__ = '):
         exec(line)
         break
 
 setup(
-    name='pydump',
+    name='pypm',
     version=__version__,
     description='Post-mortem debugging for Python programs',
     long_description=DESCRIPTION,
-    author='Eli Finer',
+    author='Jordi Masip',
     license='MIT',
-    author_email='eli.finer@gmail.com',
-    url='https://github.com/gooli/pydump',
-    package_dir={'pydump':'.'},
-    packages=['pydump'],
-    scripts=['pydump'],
+    author_email='jordi@masip.cat',
+    url='https://github.com/masipcat/pypm',
+    package_dir={'pypm':'.'},
+    packages=['pypm'],
+    scripts=['pypm'],
     install_requires=['dill'],
     classifiers=[
         'Development Status :: 4 - Beta',
