@@ -37,7 +37,7 @@ if __name__ == '__main__':
         loop.close()
         foo()
     except:
-        import pypm
+        from pypm import pypm
         filename = __file__ + '.dump'
         print("Exception caught, writing %s" % filename)
         pypm.save_dump(filename)

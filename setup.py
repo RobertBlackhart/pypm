@@ -12,7 +12,7 @@ Works with the built-in pdb and with other popular debuggers
 
 # get version without importing
 __version__ = 'unknown'
-for line in open('pypm.py'):
+for line in open('pypm/pypm.py'):
     if line.startswith('__version__ = '):
         exec(line)
         break
@@ -26,9 +26,8 @@ setup(
     license='MIT',
     author_email='jordi@masip.cat',
     url='https://github.com/masipcat/pypm',
-    package_dir={'pypm':'.'},
+    package_dir={'pypm': 'pypm'},
     packages=['pypm'],
-    scripts=['pypm'],
     install_requires=['dill'],
     classifiers=[
         'Development Status :: 4 - Beta',
