@@ -29,11 +29,28 @@ import pickle
 import linecache
 import inspect
 import dill
+import time
 import builtins as __builtin__
 
 __version__ = "2.0"
 
 DUMP_VERSION = 1
+exceptions_to_trigger = []
+
+
+# Public functions
+# ================
+
+
+def set_dump_on_exceptions(*exceptions):
+    """
+    Set one or more exceptions that will save the dump automatically
+    """
+    _monkeypatch_sys_excepthook()
+
+    global exceptions_to_trigger
+    exceptions_to_trigger = exceptions
+
 
 def save_dump(filename, tb=None):
     """
@@ -52,8 +69,7 @@ def save_dump(filename, tb=None):
         'dump_version': DUMP_VERSION
     }
     
-    # Monkey patch of pickle.save() to fail silently when saving unpickable objects
-    pickle._Pickler.save = pickle_save(pickle._Pickler.save)
+    _monkeypatch_pickle_save()
 
     with gzip.open(filename, 'wb') as f:
         dill.dump(dump, f)
@@ -90,6 +106,10 @@ def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     inspect.iscode = _old_iscode
     inspect.istraceback = _old_istraceback
     linecache.checkcache = _old_checkcache
+
+
+# Private classes and functions
+# =============================
 
 
 class NotPickled(object):
@@ -152,11 +172,42 @@ def _cache_files(files):
         linecache.cache[name] = (len(data), None, lines, name)
 
 
-def pickle_save(f):
+def _pickle_save(f):
     def _save(self, obj, save_persistent_id=True):
         try:
             f(self, obj, save_persistent_id)
-        except Exception as e:
+        except Exception:
             obj = NotPickled(obj.__repr__())
             f(self, obj, save_persistent_id)
     return _save
+
+
+def _excepthook(f):
+    def _dump_exception(_type, value, tb):
+        for exc in exceptions_to_trigger:
+            if isinstance(tb, exc):
+                filename = f'{__file__}.{time.time()}.dump'
+                save_dump(filename, tb=tb)
+                break
+        else:
+            f(_type, value, tb)
+    return _dump_exception
+
+
+def run_once(f):
+    def wrapper(*args, **kwargs):
+        if not wrapper.has_run:
+            wrapper.has_run = True
+            return f(*args, **kwargs)
+    wrapper.has_run = False
+    return wrapper
+
+
+@run_once
+def _monkeypatch_pickle_save():
+    pickle._Pickler.save = _pickle_save(pickle._Pickler.save)
+
+
+@run_once
+def _monkeypatch_sys_excepthook():
+    sys.excepthook = _excepthook(sys.excepthook)
