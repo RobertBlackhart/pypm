@@ -43,8 +43,8 @@ builtin_pickle_save = pickle._Pickler.save
 # Public
 # ======
 
-ONLY_UNCAUGHT_EXCEPTIONS = 0b01
-ONLY_CAUGHT_EXCEPTIONS   = 0b10
+UNCAUGHT_EXCEPTIONS_ONLY = 0b01
+CAUGHT_EXCEPTIONS_ONLY   = 0b10
 ALL_EXCEPTIONS           = 0b11
 
 def set_listener_for_exceptions(listener, *exceptions, mode=ALL_EXCEPTIONS):
@@ -213,7 +213,7 @@ def _pickle_save(f):
 def _excepthook(f):
     def _dump_exception(_type, value, tb):
         for exc, (mode, listener) in exceptions_to_trigger.items():
-            if mode in (ONLY_UNCAUGHT_EXCEPTIONS,
+            if mode in (UNCAUGHT_EXCEPTIONS_ONLY,
                         ALL_EXCEPTIONS):
                 if isinstance(tb, exc):
                     listener(_type, value, tb)
@@ -228,7 +228,7 @@ def _settrace(frame, event, arg):
     if event == 'exception':
         exception, value, traceback = arg
         for exc, (mode, listener) in exceptions_to_trigger.items():
-            if mode in (ONLY_CAUGHT_EXCEPTIONS,
+            if mode in (CAUGHT_EXCEPTIONS_ONLY,
                         ALL_EXCEPTIONS):
                 if exception == exc:
                     listener(exception, value, traceback)

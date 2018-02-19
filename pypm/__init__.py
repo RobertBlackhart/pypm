@@ -1,5 +1,5 @@
 from .pypm import save_dump, load_dump, debug_dump, set_listener_for_exceptions, del_listener_for_exceptions
-from .pypm import __version__, ONLY_UNCAUGHT_EXCEPTIONS, ONLY_CAUGHT_EXCEPTIONS, ALL_EXCEPTIONS
+from .pypm import __version__, UNCAUGHT_EXCEPTIONS_ONLY, CAUGHT_EXCEPTIONS_ONLY, ALL_EXCEPTIONS
 
 if __name__ == '__main__':
     import sys
