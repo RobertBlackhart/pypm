@@ -33,23 +33,38 @@ import time
 import builtins as __builtin__
 
 __version__ = "2.0"
-
 DUMP_VERSION = 1
-exceptions_to_trigger = []
+
+exceptions_to_trigger = {}
+builtin_sys_excepthook = sys.excepthook
+builtin_pickle_save = pickle._Pickler.save
 
 
 # Public functions
 # ================
 
 
-def set_dump_on_exceptions(*exceptions):
+def set_listener_for_exceptions(listener, *exceptions):
     """
-    Set one or more exceptions that will save the dump automatically
+    Set a listener to trigger when one of the `*exceptions` is raised on any point of the program.
     """
     _monkeypatch_sys_excepthook()
 
     global exceptions_to_trigger
-    exceptions_to_trigger = exceptions
+    for exc in exceptions:
+        exceptions_to_trigger[exc] = listener
+
+
+def del_listener_for_exceptions(*exceptions):
+    """
+    Delete the listener for `*exceptions`
+    """
+    global exceptions_to_trigger
+    for exc in exceptions:
+        try:
+            del exceptions_to_trigger[exc]
+        except KeyError:
+            pass
 
 
 def save_dump(filename, tb=None):
@@ -184,10 +199,10 @@ def _pickle_save(f):
 
 def _excepthook(f):
     def _dump_exception(_type, value, tb):
-        for exc in exceptions_to_trigger:
+        for exc, listener in exceptions_to_trigger.items():
             if isinstance(tb, exc):
-                filename = f'{__file__}.{time.time()}.dump'
-                save_dump(filename, tb=tb)
+                listener(_type, value, tb)
+                f(_type, value, tb)
                 break
         else:
             f(_type, value, tb)
@@ -205,9 +220,9 @@ def run_once(f):
 
 @run_once
 def _monkeypatch_pickle_save():
-    pickle._Pickler.save = _pickle_save(pickle._Pickler.save)
+    pickle._Pickler.save = _pickle_save(builtin_pickle_save)
 
 
 @run_once
 def _monkeypatch_sys_excepthook():
-    sys.excepthook = _excepthook(sys.excepthook)
+    sys.excepthook = _excepthook(builtin_sys_excepthook)
