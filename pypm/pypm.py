@@ -23,7 +23,6 @@ THE SOFTWARE.
 
 import os
 import sys
-import pdb
 import gzip
 import pickle
 import linecache
@@ -31,6 +30,7 @@ import inspect
 import dill
 import time
 import builtins as __builtin__
+from contextlib import contextmanager
 
 __version__ = "2.0"
 DUMP_VERSION = 1
@@ -40,19 +40,23 @@ builtin_sys_excepthook = sys.excepthook
 builtin_pickle_save = pickle._Pickler.save
 
 
-# Public functions
-# ================
+# Public
+# ======
 
+ONLY_UNCAUGHT_EXCEPTIONS = 0b01
+ONLY_CAUGHT_EXCEPTIONS   = 0b10
+ALL_EXCEPTIONS           = 0b11
 
-def set_listener_for_exceptions(listener, *exceptions):
+def set_listener_for_exceptions(listener, *exceptions, mode=ALL_EXCEPTIONS):
     """
     Set a listener to trigger when one of the `*exceptions` is raised on any point of the program.
     """
     _monkeypatch_sys_excepthook()
+    _monkeypatch_sys_settrace()
 
     global exceptions_to_trigger
     for exc in exceptions:
-        exceptions_to_trigger[exc] = listener
+        exceptions_to_trigger[exc] = (mode, listener)
 
 
 def del_listener_for_exceptions(*exceptions):
@@ -101,7 +105,16 @@ def load_dump(filename):
                 return dill.load(f)
 
 
-def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
+@contextmanager
+def debug_dump(dump_filename):
+    """
+    Use this function to debug dumps:
+
+    ```
+    with debug_dump('filename.dump') as tb:
+        pdb.post_mortem(tb)
+    ```
+    """
     dump = load_dump(dump_filename)
     _cache_files(dump['files'])
     tb = dump['traceback']
@@ -115,7 +128,7 @@ def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     inspect.iscode = lambda o: _old_iscode(o) or isinstance(o, FakeCode)
     inspect.istraceback = lambda o: _old_istraceback(o) or isinstance(o, FakeTraceback)
 
-    post_mortem_func(tb)
+    yield tb
 
     inspect.isframe = _old_isframe
     inspect.iscode = _old_iscode
@@ -123,8 +136,8 @@ def debug_dump(dump_filename, post_mortem_func=pdb.post_mortem):
     linecache.checkcache = _old_checkcache
 
 
-# Private classes and functions
-# =============================
+# Private
+# =======
 
 
 class NotPickled(object):
@@ -199,14 +212,30 @@ def _pickle_save(f):
 
 def _excepthook(f):
     def _dump_exception(_type, value, tb):
-        for exc, listener in exceptions_to_trigger.items():
-            if isinstance(tb, exc):
-                listener(_type, value, tb)
-                f(_type, value, tb)
-                break
+        for exc, (mode, listener) in exceptions_to_trigger.items():
+            if mode in (ONLY_UNCAUGHT_EXCEPTIONS,
+                        ALL_EXCEPTIONS):
+                if isinstance(tb, exc):
+                    listener(_type, value, tb)
+                    f(_type, value, tb)
+                    break
         else:
             f(_type, value, tb)
     return _dump_exception
+
+
+def _settrace(frame, event, arg):
+    if event == 'exception':
+        exception, value, traceback = arg
+        for exc, (mode, listener) in exceptions_to_trigger.items():
+            if mode in (ONLY_CAUGHT_EXCEPTIONS,
+                        ALL_EXCEPTIONS):
+                if exception == exc:
+                    listener(exception, value, traceback)
+                    _monkeypatch_sys_settrace()
+                    break
+
+    return _settrace
 
 
 def run_once(f):
@@ -226,3 +255,7 @@ def _monkeypatch_pickle_save():
 @run_once
 def _monkeypatch_sys_excepthook():
     sys.excepthook = _excepthook(builtin_sys_excepthook)
+
+
+def _monkeypatch_sys_settrace():
+    sys.settrace(_settrace)

@@ -1,5 +1,5 @@
 from .pypm import save_dump, load_dump, debug_dump, set_listener_for_exceptions, del_listener_for_exceptions
-from .pypm import __version__
+from .pypm import __version__, ONLY_UNCAUGHT_EXCEPTIONS, ONLY_CAUGHT_EXCEPTIONS, ALL_EXCEPTIONS
 
 if __name__ == '__main__':
     import sys
@@ -27,7 +27,12 @@ if __name__ == '__main__':
         else:
             print("Starting %s..." % debugger)
             if debugger == "pudb":
-                debug_dump(args[0], dbg.post_mortem)
+                post_mortem = dbg.post_mortem
             else:
-                debug_dump(args[0])
+                import pdb
+                post_mortem = pdb.post_mortem
+
             break
+
+    with debug_dump(args[0]) as tb:
+        post_mortem(tb)
