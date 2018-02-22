@@ -1,9 +1,12 @@
 Python post-mortem debugging
 ============================
 
-Pydump writes the traceback of an exception into a file and 
+Pypm writes the traceback of an exception into a file and 
 can later load it in a Python debugger. It works with the built-in 
 pdb and with other popular debuggers (pudb, ipdb and pdbpp).
+
+Pypm its based on [pydump](https://github.com/elifiner/pydump), 
+developed by Eli Finer.
 
 Why I wrote this?
 =================
@@ -26,6 +29,12 @@ the relevant source is stored in the dump file.
 
 Version History
 ===============
+
+2.0.0
+-----
+* Started using 'dill' package
+* asyncio compatibile
+* Refactored
 
 1.1.1
 -----

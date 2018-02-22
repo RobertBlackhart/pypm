@@ -1,13 +1,11 @@
-#!/usr/bin/env python
-import pdb
-import sys
-import pydump
-import linecache
-from optparse import OptionParser
+from .pypm import save_dump, load_dump, debug_dump, set_listener_for_exceptions, del_listener_for_exceptions
+from .pypm import __version__, UNCAUGHT_EXCEPTIONS_ONLY, CAUGHT_EXCEPTIONS_ONLY, ALL_EXCEPTIONS
 
 if __name__ == '__main__':
+    import sys
+    from optparse import OptionParser
 
-    parser = OptionParser(usage="%prog <filename.dump> [options]", description="pydump v%s: post-mortem debugging for Python programs" % pydump.__version__)
+    parser = OptionParser(usage="%prog <filename.dump> [options]", description="pydump v%s: post-mortem debugging for Python programs" % __version__)
     parser.add_option("--pdb",  action="append_const", const="pdb",  dest="debuggers", help="Use builtin pdb or pdb++")
     parser.add_option("--pudb", action="append_const", const="pudb", dest="debuggers", help="Use pudb visual debugger")
     parser.add_option("--ipdb", action="append_const", const="ipdb", dest="debuggers", help="Use ipdb IPython debugger")
@@ -29,7 +27,12 @@ if __name__ == '__main__':
         else:
             print("Starting %s..." % debugger)
             if debugger == "pudb":
-                pydump.debug_dump(args[0], dbg.post_mortem)
+                post_mortem = dbg.post_mortem
             else:
-                pydump.debug_dump(args[0])
+                import pdb
+                post_mortem = pdb.post_mortem
+
             break
+
+    with debug_dump(args[0]) as tb:
+        post_mortem(tb)
