@@ -38,5 +38,10 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Software Development :: Debuggers'
-    ]
+    ],
+    entry_points={
+        'console_scripts': [
+            'pypm=pypm.__main__:main',
+        ],
+    }
 )

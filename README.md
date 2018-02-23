@@ -1,52 +1,22 @@
-Python post-mortem debugging
-============================
+# pypm-fork
+I got this idea of saving interpreter state after exception
+so I can interactively debug my long running programs.
 
-Pypm writes the traceback of an exception into a file and 
-can later load it in a Python debugger. It works with the built-in 
-pdb and with other popular debuggers (pudb, ipdb and pdbpp).
+Most often, this happens when wrangling some data and such.
 
-Pypm its based on [pydump](https://github.com/elifiner/pydump), 
-developed by Eli Finer.
+In this fork, I am using argparse and did some light refactoring.
 
-Why I wrote this?
-=================
+# Installation
+1. clone this repository
+2. `cd pypm`
+3. `pip install -e .`
 
-I spent way too much time trying to discern details about bugs from
-logs that don't have enough information in them. Wouldn't it be nice
-to be able to open a debugger and load the entire stack of the crashed
-process into it and look around like you would if it crashed on your own 
-machine?
+# Usage
+You have to call `pypm.save_dump` in an `except` block. 
+You can reraise your exception again. See example.py for
+an, well, example...
 
-Possible uses
-=============
+When the dump file is saved, you can use `pypm my.dump`
+to get into an interactive post mortem debugging. See
+`pypm --help` for options.
 
-This project (or approach) might be useful in multiprocessing environments
-running many unattended processes. The most common case for me is on
-production web servers that I can't really stop and debug. For each 
-exception caught, I write a dump file and I can debug each issue on 
-my own time, on my own box, even if I don't have the source, since 
-the relevant source is stored in the dump file.
-
-Version History
-===============
-
-2.0.0
------
-* Started using 'dill' package
-* asyncio compatibile
-* Refactored
-
-1.1.1
------
-* Fixed a few small bugs.
-
-1.1.0
------
-
-* Now storing built-in datatypes and custom class data members
-  instead of their string representations.
-
-1.0.0
------
-
-* First public version
