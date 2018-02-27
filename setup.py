@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 
 DESCRIPTION = """
 pypm allows post-mortem debugging for Python programs.
@@ -24,8 +24,8 @@ setup(
     long_description=DESCRIPTION,
     author='Jordi Masip',
     license='MIT',
-    author_email='jordi@masip.cat',
-    url='https://github.com/masipcat/pypm',
+    author_email='jordi.masip@onna.com',
+    url='https://github.com/onna/pypm',
     package_dir={'pypm': 'pypm'},
     packages=['pypm'],
     install_requires=['dill'],
