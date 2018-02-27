@@ -8,7 +8,7 @@ from pypm.pypm import debug_dump
 def parse_args():
     parser = argparse.ArgumentParser('pypm - post_mortem debugging of python dumps using pypm.save_dump')
     parser.add_argument('dump', help='Path to the dump file')
-    parser.add_argument('--debugger', default='ipdb', help='Debugger to use (must implement `post_morgem`)')
+    parser.add_argument('--debugger', default='pdb', help='Debugger to use (must implement `post_morgem`)')
     return parser.parse_args()
 
 def _debug(debugger, dump_file):
