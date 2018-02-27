@@ -30,7 +30,7 @@ import inspect
 import dill
 from contextlib import contextmanager
 
-__version__ = "2.0b3"
+__version__ = "2.0b4"
 __all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
            "__version__", "UNCAUGHT_EXCEPTIONS_ONLY", "CAUGHT_EXCEPTIONS_ONLY",
            "ALL_EXCEPTIONS"]
