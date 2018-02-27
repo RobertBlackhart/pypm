@@ -18,7 +18,7 @@ for line in open('pypm/pypm.py'):
         break
 
 setup(
-    name='pypm',
+    name='pm.py',
     version=__version__,
     description='Post-mortem debugging for Python programs',
     long_description=DESCRIPTION,
