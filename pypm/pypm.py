@@ -28,12 +28,12 @@ import pickle
 import linecache
 import inspect
 import dill
-import time
-import builtins as __builtin__
 from contextlib import contextmanager
 
-__version__ = "2.0"
-DUMP_VERSION = 1
+__version__ = "2.0b3"
+__all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
+           "__version__", "UNCAUGHT_EXCEPTIONS_ONLY", "CAUGHT_EXCEPTIONS_ONLY",
+           "ALL_EXCEPTIONS"]
 
 exceptions_to_trigger = {}
 builtin_sys_excepthook = sys.excepthook
@@ -43,13 +43,33 @@ builtin_pickle_save = pickle._Pickler.save
 # Public
 # ======
 
+DUMP_VERSION = 1
+
 UNCAUGHT_EXCEPTIONS_ONLY = 0b01
 CAUGHT_EXCEPTIONS_ONLY   = 0b10
 ALL_EXCEPTIONS           = 0b11
 
-def set_listener_for_exceptions(listener, *exceptions, mode=ALL_EXCEPTIONS):
+
+class FrozenTraceback(object):
+
+    def __init__(self, traceback, files, dump_version=DUMP_VERSION):
+        self.traceback = traceback
+        self.files = files
+        self.dump_version = dump_version
+
+    def to_bytes(self):
+        with _monkeypatch_pickle_save():
+            return gzip.compress(dill.dumps(self))
+
+    @staticmethod
+    def from_bytes(b):
+        return dill.loads(gzip.decompress(b))
+
+
+def set_listener_for_exceptions(listener, *exceptions, mode=UNCAUGHT_EXCEPTIONS_ONLY):
     """
-    Set a listener to trigger when one of the `*exceptions` is raised on any point of the program.
+    Set a listener to trigger when one of the `*exceptions` is raised on any point of
+    the program.
     """
     _monkeypatch_sys_excepthook()
     _monkeypatch_sys_settrace()
@@ -71,53 +91,58 @@ def del_listener_for_exceptions(*exceptions):
             pass
 
 
-def save_dump(filename, tb=None):
-    """
-    Saves a Python traceback in a pickled file. This function will usually be called from
-    an except block to allow post-mortem debugging of a failed process.
-
-    The saved file can be loaded with load_dump which creates a fake traceback
-    object that can be passed to any reasonable Python debugger.
-    """
-    if not tb:
-        tb = sys.exc_info()[2]
+def freeze_traceback(tb=None):
+    tb = tb or sys.exc_info()[2]
     fake_tb = FakeTraceback(tb)
-    dump = {
-        'traceback': fake_tb,
-        'files': _get_traceback_files(fake_tb),
-        'dump_version': DUMP_VERSION
-    }
-    
-    _monkeypatch_pickle_save()
+    return FrozenTraceback(fake_tb, _get_traceback_files(fake_tb))
 
-    with gzip.open(filename, 'wb') as f:
-        dill.dump(dump, f)
 
-def load_dump(filename):
-    # ugly hack to handle running non-install pydump
-    if 'pypm.pypm' not in sys.modules:
-        sys.modules['pypm.pypm'] = sys.modules[__name__]
-    with gzip.open(filename, 'rb') as f:
-        try:
-            return dill.load(f)
-        except IOError:
-            with open(filename, 'rb') as f:
-                return dill.load(f)
+def dumps(frozen_traceback):
+    """
+    Returns the FrozenTraceback object as a byte string
+    """
+    return frozen_traceback.to_bytes()
+
+
+def dump(frozen_traceback, f):
+    """
+    Save the FrozenTraceback object to a file
+    """
+    f.write(dumps(frozen_traceback))
+
+
+def loads(bytes_of_frozen_traceback):
+    """
+    Returns the FrozenTraceback object from a byte string
+    """
+    return FrozenTraceback.from_bytes(bytes_of_frozen_traceback)
+
+
+def load(f):
+    """
+    Returns the FrozenTraceback object from a file
+    """
+    return loads(f.read())
 
 
 @contextmanager
-def debug_dump(dump_filename):
+def debug(frozen_traceback):
     """
-    Use this function to debug dumps:
+    Use this function to debug a FrozenTraceback object:
 
     ```
-    with debug_dump('filename.dump') as tb:
+    with open('frozen_traceback.dump', 'rb') as f:
+        frozen_traceback = load(f)
+
+    with debug(frozen_traceback) as tb:
         pdb.post_mortem(tb)
     ```
     """
-    dump = load_dump(dump_filename)
-    _cache_files(dump['files'])
-    tb = dump['traceback']
+    need_to_patch_sys_modules = 'pypm.pypm' not in sys.modules
+    if need_to_patch_sys_modules:  # ugly hack to handle running non-install pypm
+        sys.modules['pypm.pypm'] = sys.modules[__name__]
+
+    _old_linecache = linecache.cache
     _old_checkcache = linecache.checkcache
     _old_isframe = inspect.isframe
     _old_iscode = inspect.iscode
@@ -128,12 +153,18 @@ def debug_dump(dump_filename):
     inspect.iscode = lambda o: _old_iscode(o) or isinstance(o, FakeCode)
     inspect.istraceback = lambda o: _old_istraceback(o) or isinstance(o, FakeTraceback)
 
-    yield tb
+    _cache_files(frozen_traceback.files)
+
+    yield frozen_traceback.traceback
 
     inspect.isframe = _old_isframe
     inspect.iscode = _old_iscode
     inspect.istraceback = _old_istraceback
     linecache.checkcache = _old_checkcache
+    linecache.cache = _old_linecache
+
+    if need_to_patch_sys_modules:
+        del sys.modules['pypm.pypm']
 
 
 # Private
@@ -195,6 +226,7 @@ def _get_traceback_files(traceback):
 
 
 def _cache_files(files):
+    linecache.cache = linecache.cache.copy()
     for name, data in files.items():
         lines = [line+'\n' for line in data.splitlines()]
         linecache.cache[name] = (len(data), None, lines, name)
@@ -247,9 +279,11 @@ def run_once(f):
     return wrapper
 
 
-@run_once
+@contextmanager
 def _monkeypatch_pickle_save():
     pickle._Pickler.save = _pickle_save(builtin_pickle_save)
+    yield
+    pickle._Pickler.save = builtin_pickle_save
 
 
 @run_once

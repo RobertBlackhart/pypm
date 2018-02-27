@@ -37,8 +37,9 @@ if __name__ == '__main__':
         loop.close()
         foo()
     except:
-        import pypm
+        from pypm import dump, freeze_traceback
         filename = __file__ + '.dump'
         print("Exception caught, writing %s" % filename)
-        pypm.save_dump(filename)
+        with open(filename, 'wb') as f:
+            dump(freeze_traceback(), f)
         print("Run 'pypm %s' to debug" % (filename))
