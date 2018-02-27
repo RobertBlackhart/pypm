@@ -2,7 +2,7 @@ import sys
 import argparse
 import importlib
 
-from pypm.pypm import debug_dump
+from pypm import *
 
 
 def parse_args():
@@ -12,7 +12,7 @@ def parse_args():
     return parser.parse_args()
 
 def _debug(debugger, dump_file):
-    with debug_dump(dump_file) as tb:
+    with open(dump_file, 'rb') as f, debug(load(f)) as tb:
         debugger.post_mortem(tb)
 
 def main():

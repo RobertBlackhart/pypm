@@ -7,10 +7,12 @@ def f():
     raise ValueError('hey')
 
 if __name__ == '__main__':
-    from pypm import pypm
+    from pypm import dump, freeze_traceback
 
     try:
         f()
     except Exception as ex:
-        pypm.save_dump('test.dump')
+        with open('test.dump', 'wb') as f:
+            dump(freeze_traceback(), f)
+
         raise ex
