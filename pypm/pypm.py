@@ -29,7 +29,10 @@ import linecache
 import inspect
 import dill
 from contextlib import contextmanager
-import StringIO
+try:
+    from StringIO import StringIO as FakeFile
+except ImportError:
+    from io import BytesIO as FakeFile
 
 __version__ = "2.0b4"
 __all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
@@ -61,14 +64,14 @@ class FrozenTraceback(object):
 
     def to_bytes(self):
         with _monkeypatch_pickle_save():
-            bytes_out = StringIO.StringIO()
+            bytes_out = FakeFile()
             with gzip.GzipFile(fileobj=bytes_out, mode='w') as outfile:
                 outfile.write(dill.dumps(self))
             return bytes_out.getvalue()
 
     @staticmethod
     def from_bytes(b):
-        bytes_in = StringIO.StringIO(b)
+        bytes_in = FakeFile(b)
         with gzip.GzipFile(fileobj=bytes_in, mode='r') as infile:
             return dill.loads(infile.read())
 
