@@ -244,16 +244,22 @@ def _cache_files(files):
 
 def _pickle_save(f):
     def _save(self, obj, save_persistent_id=True):
+        not_pickled_obj = NotPickled(repr(obj))
         try:
-            f(self, obj, save_persistent_id)
-        except TypeError:
-            f(self, obj)
+            f(self, obj, save_persistent_id=save_persistent_id)
+        except TypeError as err:
+            if 'unexpected keyword argument' in str(err):
+                try:
+                    f(self, obj)
+                except Exception:
+                    f(self, not_pickled_obj)
+            else:
+                f(self, not_pickled_obj, save_persistent_id=save_persistent_id)
         except Exception:
-            obj = NotPickled(obj.__repr__())
             try:
-                f(self, obj, save_persistent_id)
+                f(self, not_pickled_obj, save_persistent_id=save_persistent_id)
             except TypeError:
-                f(self, obj)
+                f(self, not_pickled_obj)
 
     return _save
 
