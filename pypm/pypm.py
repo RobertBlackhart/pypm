@@ -29,6 +29,7 @@ import linecache
 import inspect
 import dill
 from contextlib import contextmanager
+import StringIO
 
 __version__ = "2.0b4"
 __all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
@@ -37,7 +38,8 @@ __all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
 
 exceptions_to_trigger = {}
 builtin_sys_excepthook = sys.excepthook
-builtin_pickle_save = pickle._Pickler.save
+pickler_module = getattr(pickle, '_Pickler', pickle.Pickler)
+builtin_pickle_save = getattr(pickler_module, 'save')
 
 
 # Public
@@ -59,14 +61,19 @@ class FrozenTraceback(object):
 
     def to_bytes(self):
         with _monkeypatch_pickle_save():
-            return gzip.compress(dill.dumps(self))
+            bytes_out = StringIO.StringIO()
+            with gzip.GzipFile(fileobj=bytes_out, mode='w') as outfile:
+                outfile.write(dill.dumps(self))
+            return bytes_out.getvalue()
 
     @staticmethod
     def from_bytes(b):
-        return dill.loads(gzip.decompress(b))
+        bytes_in = StringIO.StringIO(b)
+        with gzip.GzipFile(fileobj=bytes_in, mode='r') as infile:
+            return dill.loads(infile.read())
 
 
-def set_listener_for_exceptions(listener, *exceptions, mode=UNCAUGHT_EXCEPTIONS_ONLY):
+def set_listener_for_exceptions(listener, mode=UNCAUGHT_EXCEPTIONS_ONLY, *exceptions):
     """
     Set a listener to trigger when one of the `*exceptions` is raised on any point of
     the program.
@@ -174,7 +181,7 @@ def debug(frozen_traceback):
 class NotPickled(object):
 
     def __init__(self, txt):
-        self.__str__ = lambda x: f'<NotPickled: {txt}>'
+        self.__str__ = lambda x: '<NotPickled: %s>' % txt
 
 
 class FakeCode(object):
@@ -236,9 +243,15 @@ def _pickle_save(f):
     def _save(self, obj, save_persistent_id=True):
         try:
             f(self, obj, save_persistent_id)
+        except TypeError:
+            f(self, obj)
         except Exception:
             obj = NotPickled(obj.__repr__())
-            f(self, obj, save_persistent_id)
+            try:
+                f(self, obj, save_persistent_id)
+            except TypeError:
+                f(self, obj)
+
     return _save
 
 
@@ -281,9 +294,9 @@ def run_once(f):
 
 @contextmanager
 def _monkeypatch_pickle_save():
-    pickle._Pickler.save = _pickle_save(builtin_pickle_save)
+    pickler_module.save = _pickle_save(builtin_pickle_save)
     yield
-    pickle._Pickler.save = builtin_pickle_save
+    pickler_module.save = builtin_pickle_save
 
 
 @run_once

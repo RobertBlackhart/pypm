@@ -1,1 +1,1 @@
-from pypm.pypm import *
+from .pypm import *

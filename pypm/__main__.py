@@ -2,7 +2,7 @@ import sys
 import argparse
 import importlib
 
-from pypm import *
+from .pypm import debug, load
 
 
 def parse_args():
@@ -22,4 +22,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

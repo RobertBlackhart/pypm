@@ -1,3 +1,6 @@
+from pypm import dump, freeze_traceback
+
+
 def f():
     adam = 3
     beta = 4
@@ -6,13 +9,13 @@ def f():
     epsilon = {'a': [1,2,3,4]}
     raise ValueError('hey')
 
-if __name__ == '__main__':
-    from pypm import dump, freeze_traceback
 
+if __name__ == '__main__':
     try:
         f()
     except Exception as ex:
-        with open('test.dump', 'wb') as f:
+        dump_file = 'test.dump'
+        with open(dump_file, 'wb') as f:
+            print("Exception caught, writing dump to %s" % dump_file)
             dump(freeze_traceback(), f)
-
-        raise ex
+            print("Run 'python -m pypm [--debugger <pdb|pudb|ipdb>] %s' to debug" % (dump_file))
