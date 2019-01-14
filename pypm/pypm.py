@@ -183,8 +183,16 @@ def debug(frozen_traceback):
 
 class NotPickled(object):
 
-    def __init__(self, txt):
-        self.__str__ = lambda x: '<NotPickled: %s>' % txt
+    def __new__(cls, *args, **kwargs):
+        obj = object.__new__(NotPickled)
+        obj.__init__(*args, **kwargs)
+        return obj
+
+    def __init__(self, txt=''):
+        self.txt = txt
+
+    def __str__(self):
+        return '<NotPickled: %s>' % self.txt
 
 
 class FakeCode(object):
