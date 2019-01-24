@@ -41,6 +41,11 @@ __all__ = ["freeze_traceback", "dump", "dumps", "load", "loads", "debug",
 
 exceptions_to_trigger = {}
 builtin_sys_excepthook = sys.excepthook
+if hasattr(pickle, '_dumps'):
+    # force the pickle module to use the pure Python implementation so that
+    # we can later monkeypatch it
+    pickle.dumps = pickle._dumps
+    pickle.dump = pickle._dump
 pickler_module = getattr(pickle, '_Pickler', pickle.Pickler)
 builtin_pickle_save = getattr(pickler_module, 'save')
 
